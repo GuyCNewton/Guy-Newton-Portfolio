@@ -1,33 +1,20 @@
-AI-Enhanced Product Manager Tool Suite
-A Portfolio of Functional Technical Artifacts
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
 
-🎯 Project Overview
+# Run and deploy your AI Studio app
 
-This repository contains a suite of functional tools designed to demonstrate how generative AI can be integrated into the product management lifecycle. Rather than static documents, these artifacts are live, interactive applications that solve real-world problems in market analysis, roadmap prioritization, and technical prototyping.
+This contains everything you need to run your app locally.
 
-🚀 Featured Tools
+View your app in AI Studio: https://ai.studio/apps/a446aa34-34c6-4489-9f09-9f26d53f3ed1
 
-Strategic Market Analyzer: 
-A React-based tool that leverages LLMs to synthesize market trends and competitor landscapes into actionable insights.
+## Run Locally
 
-Dynamic GTM Dashboard: An interactive interface for managing Go-To-Market phases, bridging the gap between high-level strategy and technical execution.
+**Prerequisites:**  Node.js
 
-AI Prototyping Engine: A sandbox demonstrating the transition from prompt-based logic to a deployed cloud application.
 
-🧠 PM Competencies Showcased
-
-Technical Fluency: 
-Ability to build, manage, and deploy applications using React, GitHub, and cloud hosting (Netlify/Vercel).
-
-AI Strategy: Practical application of Large Language Models (LLMs) to automate routine product tasks and enhance decision-making.
-
-User-Centric Design: Focus on creating clean, intuitive interfaces for complex data sets.
-
-💻 Tech Stack
-Frontend: React / Vite
-
-AI Engine: Google Gemini API
-
-Version Control: GitHub
-
-Deployment & CI/CD: Netlify
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`

@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Spec Debt Detector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;1,9..144,300&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0e0f11; --bg2: #141519; --bg3: #1c1e24;
+    --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
+    --text: #e8e6df; --text2: #8a8880; --text3: #55534f;
+    --accent: #e8c87a; --accent2: rgba(232,200,122,0.1);
+    --blocker: #e05252; --high: #e07a30; --medium: #c4b45a; --low: #5a8a6a;
+    --c-undefined: #7a9de0; --c-assumption: #b07ae0; --c-actor: #7ac4c0;
+    --c-scope: #e0a07a; --c-testable: #8ae09a;
+    --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif; --serif: 'Fraunces', serif;
+  }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.6; }
+  #app { min-height: 100vh; display: flex; flex-direction: column; }
+  header { padding: 2rem 2.5rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 1rem; }
+  header h1 { font-family: var(--serif); font-weight: 300; font-size: 1.5rem; letter-spacing: -0.02em; }
+  header h1 span { color: var(--accent); font-style: italic; }
+  header p { font-family: var(--mono); font-size: 11px; color: var(--text3); }
+  main { flex: 1; padding: 2rem 2.5rem; max-width: 1400px; width: 100%; margin: 0 auto; }
+  #input-state { max-width: 760px; margin: 3rem auto; }
+  #input-state label { display: block; font-family: var(--mono); font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.75rem; }
+  #spec-input { width: 100%; min-height: 320px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-family: var(--mono); font-size: 13px; line-height: 1.7; padding: 1.25rem; resize: vertical; outline: none; transition: border-color 0.2s; }
+  #spec-input:focus { border-color: var(--accent); }
+  #spec-input::placeholder { color: var(--text3); }
+  .input-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 1rem; }
+  .char-count { font-family: var(--mono); font-size: 11px; color: var(--text3); }
+  #run-btn { background: var(--accent); color: #0e0f11; border: none; border-radius: 4px; font-family: var(--mono); font-size: 12px; font-weight: 500; padding: 0.6rem 1.5rem; cursor: pointer; letter-spacing: 0.05em; transition: opacity 0.2s, transform 0.1s; }
+  #run-btn:hover { opacity: 0.88; }
+  #run-btn:active { transform: scale(0.98); }
+  #run-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .error-box { background: rgba(224,82,82,0.1); border: 1px solid rgba(224,82,82,0.3); border-radius: 6px; padding: 1rem 1.25rem; font-family: var(--mono); font-size: 12px; color: var(--blocker); display: none; margin-top: 1rem; }
+  #loading-state { max-width: 560px; margin: 4rem auto; display: none; }
+  .pipeline { display: flex; flex-direction: column; }
+  .pipe-step { display: flex; align-items: flex-start; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--border); opacity: 0.35; transition: opacity 0.3s; }
+  .pipe-step:last-child { border-bottom: none; }
+  .pipe-step.active { opacity: 1; }
+  .pipe-step.done { opacity: 0.6; }
+  .step-indicator { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; font-family: var(--mono); font-size: 10px; color: var(--text3); transition: all 0.3s; }
+  .pipe-step.active .step-indicator { border-color: var(--accent); color: var(--accent); }
+  .pipe-step.done .step-indicator { background: var(--accent); border-color: var(--accent); color: #0e0f11; }
+  .step-info { flex: 1; }
+  .step-name { font-family: var(--mono); font-size: 12px; color: var(--text); margin-bottom: 2px; }
+  .step-detail { font-size: 12px; color: var(--text2); }
+  .parallel-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .parallel-pill { font-family: var(--mono); font-size: 10px; padding: 2px 8px; border-radius: 20px; border: 1px solid var(--border2); color: var(--text3); transition: all 0.3s; }
+  .parallel-pill.running { border-color: var(--accent); color: var(--accent); }
+  .parallel-pill.done { background: rgba(232,200,122,0.12); border-color: transparent; color: var(--accent); }
+  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .pulse { animation: pulse-dot 1.2s ease-in-out infinite; }
+  #results-state { display: none; }
+  .results-grid { display: grid; grid-template-columns: 1fr 420px; gap: 2rem; align-items: start; }
+  .spec-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; position: sticky; top: 1.5rem; }
+  .panel-header { padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .panel-title { font-family: var(--mono); font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; }
+  #annotated-spec { padding: 1.25rem; font-family: var(--mono); font-size: 12.5px; line-height: 1.85; color: var(--text2); white-space: pre-wrap; word-break: break-word; max-height: 80vh; overflow-y: auto; }
+  #annotated-spec::-webkit-scrollbar { width: 4px; }
+  #annotated-spec::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .spec-highlight { border-radius: 2px; cursor: pointer; transition: all 0.15s; border-bottom: 1.5px solid; padding-bottom: 1px; }
+  .spec-highlight:hover { filter: brightness(1.3); }
+  .spec-highlight.active-highlight { outline: 1px solid currentColor; outline-offset: 1px; }
+  .hl-UNDEFINED_BEHAVIOR  { color: var(--c-undefined);  border-color: var(--c-undefined);  background: rgba(122,157,224,0.08); }
+  .hl-UNSTATED_ASSUMPTION { color: var(--c-assumption); border-color: var(--c-assumption); background: rgba(176,122,224,0.08); }
+  .hl-MISSING_ACTOR       { color: var(--c-actor);      border-color: var(--c-actor);      background: rgba(122,196,192,0.08); }
+  .hl-SCOPE_MAGNET        { color: var(--c-scope);      border-color: var(--c-scope);      background: rgba(224,160,122,0.08); }
+  .hl-UNTESTABLE          { color: var(--c-testable);   border-color: var(--c-testable);   background: rgba(138,224,154,0.08); }
+  .issues-panel { display: flex; flex-direction: column; gap: 1.5rem; }
+  .summary-bar { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
+  .summary-stat { text-align: center; }
+  .summary-stat .num { font-family: var(--mono); font-size: 1.5rem; font-weight: 500; line-height: 1; }
+  .summary-stat .lbl { font-family: var(--mono); font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 3px; }
+  .summary-divider { width: 1px; height: 36px; background: var(--border); }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; color: var(--text2); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .filter-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filter-btn { font-family: var(--mono); font-size: 10px; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.05em; }
+  .filter-btn:hover { color: var(--text); }
+  .filter-btn.active { background: var(--accent2); border-color: var(--accent); color: var(--accent); }
+  .issues-list { display: flex; flex-direction: column; gap: 10px; }
+  .issue-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; transition: border-color 0.15s; animation: card-in 0.25s ease forwards; }
+  @keyframes card-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .issue-card:hover { border-color: var(--border2); }
+  .issue-card.card-active { border-color: var(--accent); }
+  .issue-card-header { padding: 0.75rem 1rem; display: flex; align-items: flex-start; gap: 10px; border-bottom: 1px solid var(--border); }
+  .severity-pip { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
+  .sev-BLOCKER { background: var(--blocker); } .sev-HIGH { background: var(--high); }
+  .sev-MEDIUM  { background: var(--medium);  } .sev-LOW  { background: var(--low);  }
+  .issue-meta { flex: 1; min-width: 0; }
+  .issue-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+  .category-badge { font-family: var(--mono); font-size: 10px; padding: 2px 7px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; }
+  .cat-UNDEFINED_BEHAVIOR  { color: var(--c-undefined);  background: rgba(122,157,224,0.12); }
+  .cat-UNSTATED_ASSUMPTION { color: var(--c-assumption); background: rgba(176,122,224,0.12); }
+  .cat-MISSING_ACTOR       { color: var(--c-actor);      background: rgba(122,196,192,0.12); }
+  .cat-SCOPE_MAGNET        { color: var(--c-scope);      background: rgba(224,160,122,0.12); }
+  .cat-UNTESTABLE          { color: var(--c-testable);   background: rgba(138,224,154,0.12); }
+  .sev-label { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+  .sev-label.sl-BLOCKER { color: var(--blocker); } .sev-label.sl-HIGH { color: var(--high); }
+  .issue-quoted { font-family: var(--mono); font-size: 11.5px; color: var(--text2); line-height: 1.5; border-left: 2px solid var(--border2); padding-left: 8px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .issue-card-body { padding: 0.75rem 1rem; }
+  .issue-explanation { font-size: 12.5px; color: var(--text2); line-height: 1.6; margin-bottom: 8px; }
+  .question-box { background: var(--bg3); border-radius: 4px; padding: 8px 10px; border-left: 2px solid var(--accent); }
+  .question-label { font-family: var(--mono); font-size: 10px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px; }
+  .question-text { font-size: 12.5px; color: var(--text); line-height: 1.5; }
+  .rewrite-box { margin-top: 8px; background: var(--bg3); border-radius: 4px; padding: 8px 10px; border-left: 2px solid var(--low); }
+  .rewrite-box.needs-pm { border-left-color: var(--high); }
+  .rewrite-label { font-family: var(--mono); font-size: 10px; color: var(--low); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px; }
+  .rewrite-box.needs-pm .rewrite-label { color: var(--high); }
+  .rewrite-text { font-family: var(--mono); font-size: 11.5px; color: var(--text); line-height: 1.6; }
+  .reset-row { margin-top: 0.5rem; }
+  #reset-btn { background: transparent; border: 1px solid var(--border2); border-radius: 4px; color: var(--text2); font-family: var(--mono); font-size: 11px; padding: 0.5rem 1rem; cursor: pointer; transition: all 0.15s; }
+  #reset-btn:hover { color: var(--text); border-color: var(--text2); }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Spec Debt <span>Detector</span></h1>
+    <p>// finds what'll break in the sprint</p>
+  </header>
+  <main>
+    <div id="input-state">
+      <label for="spec-input">Paste your product spec or PRD</label>
+      <textarea id="spec-input" placeholder="Paste your feature spec, user story, or PRD here. The more complete the spec, the more specific the issues found.&#10;&#10;Example: 'Users can filter results by date range. The dashboard should load quickly and display key metrics in an intuitive layout. Admins can export data. The system must be secure.'"></textarea>
+      <div class="input-footer">
+        <span class="char-count" id="char-count">0 characters</span>
+        <button id="run-btn" disabled>Analyze spec &#8594;</button>
+      </div>
+      <div class="error-box" id="error-box"></div>
+    </div>
+    <div id="loading-state">
+      <div class="pipeline">
+        <div class="pipe-step" id="step-1"><div class="step-indicator" id="si-1">1</div><div class="step-info"><div class="step-name">Parsing requirements</div><div class="step-detail">Extracting actors, triggers, and outcomes from spec structure</div></div></div>
+        <div class="pipe-step" id="step-2"><div class="step-indicator" id="si-2">2</div><div class="step-info"><div class="step-name">Running detectors</div><div class="step-detail">5 specialized detectors running sequentially</div><div class="parallel-pills"><span class="parallel-pill" id="pill-UNDEFINED_BEHAVIOR">Undefined behavior</span><span class="parallel-pill" id="pill-UNSTATED_ASSUMPTION">Unstated assumptions</span><span class="parallel-pill" id="pill-MISSING_ACTOR">Missing actors</span><span class="parallel-pill" id="pill-SCOPE_MAGNET">Scope magnets</span><span class="parallel-pill" id="pill-UNTESTABLE">Untestable reqs</span></div></div></div>
+        <div class="pipe-step" id="step-3"><div class="step-indicator" id="si-3">3</div><div class="step-info"><div class="step-name">Ranking by sprint risk</div><div class="step-detail">Scoring issues by likelihood to block engineering</div></div></div>
+        <div class="pipe-step" id="step-4"><div class="step-indicator" id="si-4">4</div><div class="step-info"><div class="step-name">Generating rewrites</div><div class="step-detail">Drafting fixes for BLOCKER and HIGH severity issues</div></div></div>
+      </div>
+    </div>
+    <div id="results-state">
+      <div class="results-grid">
+        <div class="spec-panel">
+          <div class="panel-header"><span class="panel-title">Annotated spec</span><span class="panel-title" id="issue-count-label"></span></div>
+          <div id="annotated-spec"></div>
+        </div>
+        <div class="issues-panel">
+          <div class="summary-bar">
+            <div class="summary-stat"><div class="num" id="stat-total" style="color:var(--text)">0</div><div class="lbl">Issues</div></div>
+            <div class="summary-divider"></div>
+            <div class="summary-stat"><div class="num" id="stat-blocker" style="color:var(--blocker)">0</div><div class="lbl">Blockers</div></div>
+            <div class="summary-stat"><div class="num" id="stat-high" style="color:var(--high)">0</div><div class="lbl">High</div></div>
+            <div class="summary-stat"><div class="num" id="stat-medium" style="color:var(--medium)">0</div><div class="lbl">Medium</div></div>
+            <div class="summary-stat"><div class="num" id="stat-low" style="color:var(--low)">0</div><div class="lbl">Low</div></div>
+          </div>
+          <div>
+            <div class="legend" style="margin-bottom:10px">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--c-undefined)"></div>Undefined behavior</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--c-assumption)"></div>Assumption</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--c-actor)"></div>Missing actor</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--c-scope)"></div>Scope magnet</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--c-testable)"></div>Untestable</div>
+            </div>
+            <div class="filter-row" id="filter-row">
+              <button class="filter-btn active" data-filter="ALL">All</button>
+              <button class="filter-btn" data-filter="BLOCKER">Blockers</button>
+              <button class="filter-btn" data-filter="HIGH">High</button>
+              <button class="filter-btn" data-filter="MEDIUM">Medium</button>
+              <button class="filter-btn" data-filter="LOW">Low</button>
+            </div>
+          </div>
+          <div class="issues-list" id="issues-list"></div>
+          <div class="reset-row"><button id="reset-btn">&#8592; Analyze another spec</button></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+const API_URL    = '/api/claude';
+const MODEL      = 'claude-sonnet-4-20250514';
+const MAX_TOKENS = 8000;
+
+let allIssues = [], rewrites = [], activeFilter = 'ALL', activeCardId = null;
+
+const specInput     = document.getElementById('spec-input');
+const runBtn        = document.getElementById('run-btn');
+const charCount     = document.getElementById('char-count');
+const errorBox      = document.getElementById('error-box');
+const inputState    = document.getElementById('input-state');
+const loadingState  = document.getElementById('loading-state');
+const resultsState  = document.getElementById('results-state');
+const annotatedSpec = document.getElementById('annotated-spec');
+const issuesList    = document.getElementById('issues-list');
+const resetBtn      = document.getElementById('reset-btn');
+const filterRow     = document.getElementById('filter-row');
+
+function showState(s) {
+  inputState.style.display   = s === 'input'   ? 'block' : 'none';
+  loadingState.style.display = s === 'loading' ? 'block' : 'none';
+  resultsState.style.display = s === 'results' ? 'block' : 'none';
+}
+function showError(msg) {
+  errorBox.textContent = msg; errorBox.style.display = 'block';
+  runBtn.disabled = false; runBtn.textContent = 'Analyze spec \u2192';
+}
+function setStep(n, status) {
+  const el = document.getElementById('step-' + n);
+  const si = document.getElementById('si-' + n);
+  el.classList.remove('active','done');
+  if (status === 'active') { el.classList.add('active'); si.innerHTML = '<span class="pulse">\u25CF</span>'; }
+  if (status === 'done')   { el.classList.add('done');   si.textContent = '\u2713'; }
+}
+function setPill(cat, status) {
+  const p = document.getElementById('pill-' + cat);
+  if (!p) return;
+  p.classList.remove('running','done');
+  if (status === 'running') p.classList.add('running');
+  if (status === 'done')    p.classList.add('done');
+}
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Robust JSON parser — 4 recovery strategies before giving up
+function robustParse(text) {
+  // 1. Strip markdown fences
+  let s = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+  // 2. Direct parse
+  try { return JSON.parse(s); } catch(_) {}
+  // 3. Extract first { } or [ ] block
+  const objMatch = s.match(/(\{[\s\S]*\})/);
+  const arrMatch = s.match(/(\[[\s\S]*\])/);
+  const candidate = objMatch ? objMatch[1] : (arrMatch ? arrMatch[1] : null);
+  if (candidate) { try { return JSON.parse(candidate); } catch(_) {} }
+  // 4. Strip any leading prose sentence before the JSON block
+  const stripped = s.replace(/^[^\[\{]+/, '').trim();
+  if (stripped && stripped !== s) {
+    try { return JSON.parse(stripped); } catch(_) {}
+    const om2 = stripped.match(/(\{[\s\S]*\})/);
+    const am2 = stripped.match(/(\[[\s\S]*\])/);
+    const c2 = om2 ? om2[1] : (am2 ? am2[1] : null);
+    if (c2) { try { return JSON.parse(c2); } catch(_) {} }
+  }
+
+  // 5. Close truncated JSON (max_tokens cutoff recovery)
+  if (candidate) {
+    let fixed = candidate.replace(/,\s*$/, '');
+    const stack = [];
+    let inStr = false, esc = false;
+    for (const ch of fixed) {
+      if (esc) { esc = false; continue; }
+      if (ch === '\\' && inStr) { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === '{') stack.push('}');
+      else if (ch === '[') stack.push(']');
+      else if (ch === '}' || ch === ']') stack.pop();
+    }
+    while (stack.length) fixed += stack.pop();
+    try { return JSON.parse(fixed); } catch(_) {}
+  }
+  throw new Error('Model returned unexpected format \u2014 try rephrasing or shortening your spec.');
+}
+
+async function callClaude(systemPrompt, userPrompt, temperature) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: MODEL, max_tokens: MAX_TOKENS, system: systemPrompt, messages: [{ role: 'user', content: userPrompt }], temperature })
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message || 'API error ' + res.status); }
+  const data = await res.json();
+  const rawText = data.content.map(b => b.text || '').join('');
+  try {
+    return robustParse(rawText);
+  } catch(e) {
+    console.error('robustParse failed. Raw response was:\n', rawText);
+    throw new Error('Model returned unexpected format. Raw response logged to console (F12). Try shortening your spec or retry.');
+  }
+}
+
+async function parseSpec(specText) {
+  return callClaude(
+    'You are a technical requirements analyst. Parse product specifications and extract structured data. Return only valid JSON, no markdown, no preamble.',
+    'Parse the following product specification and extract its structure.\n\nReturn a JSON object with exactly this structure:\n{\n  "requirements": [\n    {\n      "id": "R1",\n      "text": "verbatim sentence or clause from the spec",\n      "type": "functional | non-functional | constraint | assumption",\n      "actors": ["who performs or is affected by this requirement"],\n      "trigger": "what initiates this requirement",\n      "outcome": "what should be true after this requirement is satisfied"\n    }\n  ],\n  "stated_assumptions": ["things the spec explicitly calls out as assumed"],\n  "tech_context": "inferred tech stack or domain if discernible, else null"\n}\n\nSpec:\n' + specText,
+    0.2
+  );
+}
+
+const DETECTORS = {
+  UNDEFINED_BEHAVIOR:  'Find requirements that do not specify what happens in edge or error cases (empty states, failures, boundary conditions, null inputs, concurrent users, timeouts). Flag any requirement where a developer would need to guess what to do when something goes wrong or the happy path is not followed.',
+  UNSTATED_ASSUMPTION: 'Find things the author clearly assumed but never wrote down: performance budgets, data availability, browser or device support, third-party service reliability, existing feature dependencies, user permission levels, data volumes. Flag assumptions that, if wrong, would require rework.',
+  MISSING_ACTOR:       'Find requirements where it is unclear who or what performs the action. Is it the user? The system? An admin? A background job? A third-party webhook? Flag any requirement where a developer would not know who initiates or is responsible for the action.',
+  SCOPE_MAGNET:        'Find vague language that invites unlimited interpretation or gold-plating: words like "intuitive", "fast", "seamless", "smart", "clean", "robust", "user-friendly", "modern", "simple", "easy to use", "nice", "good". Flag any requirement that cannot be objectively verified as complete.',
+  UNTESTABLE:          'Find requirements that cannot be written as a deterministic passing or failing automated test. A testable requirement has a clear input, a clear trigger, and a clear expected output. Flag any requirement that relies on subjective judgment to determine if it passed.'
+};
+
+async function runDetector(category, parsed, specText) {
+  setPill(category, 'running');
+  const schema = '{\n  "issues": [\n    {\n      "id": "' + category + '_1",\n      "category": "' + category + '",\n      "requirement_id": "R1",\n      "quoted_text": "exact verbatim words from the original spec that triggered this issue",\n      "explanation": "one sentence: why this is a problem for an engineer",\n      "question_to_resolve": "the specific question the PM must answer before development starts"\n    }\n  ]\n}';
+  const result = await callClaude(
+    'You are a senior software engineer reviewing a product spec before sprint planning. You find exactly one category of spec debt. Return only valid JSON, no markdown, no preamble.',
+    DETECTORS[category] + '\n\nParsed requirements:\n' + JSON.stringify(parsed.requirements, null, 2) + '\n\nOriginal spec text:\n' + specText + '\n\nReturn a JSON object:\n' + schema + '\n\nIf no issues of this type are found, return { "issues": [] }.\nOnly include genuine issues. Do not invent problems.',
+    0.4
+  );
+  setPill(category, 'done');
+  return (result.issues || []).map(i => ({ ...i, category }));
+}
+
+async function runDetectorWithRetry(category, parsed, specText) {
+  try {
+    return await runDetector(category, parsed, specText);
+  } catch (e) {
+    console.warn('Detector ' + category + ' failed, retrying in 800ms. Reason: ' + e.message);
+    await new Promise(r => setTimeout(r, 800));
+    return await runDetector(category, parsed, specText);
+  }
+}
+
+async function rankBatch(batch) {
+  const result = await callClaude(
+    'You are a sprint planning lead assessing spec issues for engineering risk. Return only valid JSON, no markdown, no preamble.',
+    'Rank each of these spec issues by how likely they are to block an engineer mid-sprint if left unresolved.\n\nSeverity levels:\n- BLOCKER: engineer cannot implement this without a PM decision. Work stops.\n- HIGH: engineer will make an assumption that is likely wrong or inconsistent with other requirements.\n- MEDIUM: engineer will make a reasonable assumption, but PM may disagree during QA.\n- LOW: cosmetic or easily reversible.\n\nIssues:\n' + JSON.stringify(batch, null, 2) + '\n\nReturn the same JSON array with "severity" and "severity_reason" added to each object. Preserve all existing fields exactly. Do not wrap in another object.',
+    0.3
+  );
+  return Array.isArray(result) ? result : (result.issues || batch);
+}
+
+async function rankIssues(issues) {
+  if (!issues.length) return [];
+  // Chunk into batches of 8 to avoid token limits on large issue sets
+  const BATCH_SIZE = 8;
+  if (issues.length <= BATCH_SIZE) return rankBatch(issues);
+  const batches = [];
+  for (let i = 0; i < issues.length; i += BATCH_SIZE) batches.push(issues.slice(i, i + BATCH_SIZE));
+  const results = [];
+  for (const batch of batches) results.push(...await rankBatch(batch));
+  // Sort combined results by severity
+  const order = { BLOCKER: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+  return results.sort((a, b) => (order[a.severity] ?? 4) - (order[b.severity] ?? 4));
+}
+
+async function generateRewrites(issues) {
+  const critical = issues.filter(i => i.severity === 'BLOCKER' || i.severity === 'HIGH');
+  if (!critical.length) return [];
+  const result = await callClaude(
+    'You are a technical writer who specializes in product specifications. You rewrite ambiguous requirements to be precise and testable. Return only valid JSON, no markdown, no preamble.',
+    'For each issue below, suggest a rewritten version of the flagged requirement that resolves the ambiguity.\n\nRules:\n- Keep the same intent and scope\n- Make actors explicit if missing\n- Add edge case handling if undefined\n- Replace vague language with measurable criteria\n- Rewrite so requirement has a clear pass/fail test condition\n- Set needs_pm_input: true if rewrite requires a product decision you cannot make\n\nIssues to rewrite:\n' + JSON.stringify(critical.map(i => ({ id: i.id, category: i.category, quoted_text: i.quoted_text, question_to_resolve: i.question_to_resolve })), null, 2) + '\n\nReturn JSON:\n{\n  "rewrites": [\n    {\n      "issue_id": "UNDEFINED_BEHAVIOR_1",\n      "original": "exact quoted text",\n      "suggested_rewrite": "the improved requirement text",\n      "needs_pm_input": false,\n      "pm_question": null\n    }\n  ]\n}',
+    0.5
+  );
+  return result.rewrites || [];
+}
+
+function buildAnnotatedSpec(specText, issues) {
+  if (!issues.length) { annotatedSpec.textContent = specText; return; }
+  const spans = [];
+  for (const issue of issues) {
+    if (!issue.quoted_text) continue;
+    const qt = issue.quoted_text.trim();
+    let idx = specText.indexOf(qt);
+    if (idx === -1) { const s = qt.slice(0, 40); idx = specText.indexOf(s); if (idx !== -1) spans.push({ start: idx, end: idx + s.length, issueId: issue.id, category: issue.category }); }
+    else spans.push({ start: idx, end: idx + qt.length, issueId: issue.id, category: issue.category });
+  }
+  spans.sort((a, b) => a.start - b.start);
+  const merged = [];
+  for (const s of spans) {
+    const last = merged[merged.length - 1];
+    if (last && s.start < last.end) { last.end = Math.max(last.end, s.end); (last.extraIds = last.extraIds || []).push(s.issueId); }
+    else merged.push({ ...s, extraIds: [] });
+  }
+  let html = '', cursor = 0;
+  for (const span of merged) {
+    if (span.start > cursor) html += escHtml(specText.slice(cursor, span.start));
+    const ids = [span.issueId, ...(span.extraIds || [])].join(' ');
+    html += '<mark class="spec-highlight hl-' + span.category + '" data-issue-ids="' + ids + '" onclick="onHighlightClick(this)">' + escHtml(specText.slice(span.start, span.end)) + '</mark>';
+    cursor = span.end;
+  }
+  if (cursor < specText.length) html += escHtml(specText.slice(cursor));
+  annotatedSpec.innerHTML = html;
+}
+
+function onHighlightClick(el) { scrollToCard(el.dataset.issueIds.split(' ')[0]); }
+
+function scrollToCard(issueId) {
+  const card = document.querySelector('.issue-card[data-id="' + issueId + '"]');
+  if (!card) return;
+  document.querySelectorAll('.issue-card').forEach(c => c.classList.remove('card-active'));
+  document.querySelectorAll('.spec-highlight').forEach(h => h.classList.remove('active-highlight'));
+  card.classList.add('card-active');
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  document.querySelectorAll('.spec-highlight').forEach(h => { if (h.dataset.issueIds.split(' ').includes(issueId)) h.classList.add('active-highlight'); });
+  activeCardId = issueId;
+}
+
+function scrollToHighlight(issueId) {
+  document.querySelectorAll('.spec-highlight').forEach(h => h.classList.remove('active-highlight'));
+  document.querySelectorAll('.issue-card').forEach(c => c.classList.remove('card-active'));
+  document.querySelectorAll('.spec-highlight').forEach(h => { if (h.dataset.issueIds.split(' ').includes(issueId)) { h.classList.add('active-highlight'); h.scrollIntoView({ behavior: 'smooth', block: 'center' }); } });
+}
+
+function renderIssues(issues, rewriteMap) {
+  const filtered = activeFilter === 'ALL' ? issues : issues.filter(i => i.severity === activeFilter);
+  issuesList.innerHTML = '';
+  if (!filtered.length) { issuesList.innerHTML = '<div style="font-family:var(--mono);font-size:12px;color:var(--text3);padding:1rem 0;">No issues match this filter.</div>'; return; }
+  filtered.forEach((issue, idx) => {
+    const rw = rewriteMap[issue.id];
+    const catLabel = issue.category.replace(/_/g,' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+    const card = document.createElement('div');
+    card.className = 'issue-card'; card.dataset.id = issue.id; card.style.animationDelay = (idx * 40) + 'ms';
+    const rwHtml = rw ? '<div class="rewrite-box' + (rw.needs_pm_input ? ' needs-pm' : '') + '"><div class="rewrite-label">' + (rw.needs_pm_input ? 'Needs PM input' : 'Suggested rewrite') + '</div><div class="rewrite-text">' + escHtml(rw.needs_pm_input ? (rw.pm_question || '') : (rw.suggested_rewrite || '')) + '</div></div>' : '';
+    card.innerHTML = '<div class="issue-card-header"><div class="severity-pip sev-' + (issue.severity||'LOW') + '"></div><div class="issue-meta"><div class="issue-top"><span class="category-badge cat-' + issue.category + '">' + catLabel + '</span><span class="sev-label sl-' + issue.severity + '">' + (issue.severity||'') + '</span></div><div class="issue-quoted">&ldquo;' + escHtml((issue.quoted_text||'').trim()) + '&rdquo;</div></div></div><div class="issue-card-body"><div class="issue-explanation">' + escHtml(issue.explanation||'') + '</div><div class="question-box"><div class="question-label">Question to resolve</div><div class="question-text">' + escHtml(issue.question_to_resolve||'') + '</div></div>' + rwHtml + '</div>';
+    card.addEventListener('click', () => { scrollToHighlight(issue.id); document.querySelectorAll('.issue-card').forEach(c => c.classList.remove('card-active')); card.classList.add('card-active'); activeCardId = issue.id; });
+    issuesList.appendChild(card);
+  });
+}
+
+function updateStats(issues) {
+  document.getElementById('stat-total').textContent   = issues.length;
+  document.getElementById('stat-blocker').textContent = issues.filter(i => i.severity === 'BLOCKER').length;
+  document.getElementById('stat-high').textContent    = issues.filter(i => i.severity === 'HIGH').length;
+  document.getElementById('stat-medium').textContent  = issues.filter(i => i.severity === 'MEDIUM').length;
+  document.getElementById('stat-low').textContent     = issues.filter(i => i.severity === 'LOW').length;
+  document.getElementById('issue-count-label').textContent = issues.length + ' issue' + (issues.length !== 1 ? 's' : '') + ' found';
+}
+
+async function runPipeline() {
+  const specText = specInput.value.trim();
+  if (!specText) return;
+  errorBox.style.display = 'none';
+  runBtn.disabled = true; runBtn.textContent = 'Analyzing...';
+  allIssues = []; rewrites = [];
+  showState('loading');
+  try {
+    setStep(1, 'active');
+    const parsed = await parseSpec(specText);
+    setStep(1, 'done');
+
+    setStep(2, 'active');
+    const rawIssues = [];
+    for (const cat of Object.keys(DETECTORS)) {
+      try { rawIssues.push(...await runDetectorWithRetry(cat, parsed, specText)); }
+      catch (e) { console.warn('Detector ' + cat + ' failed after retry, skipping: ' + e.message); setPill(cat, 'done'); }
+    }
+    setStep(2, 'done');
+
+    setStep(3, 'active');
+    allIssues = await rankIssues(rawIssues);
+    setStep(3, 'done');
+
+    setStep(4, 'active');
+    rewrites = await generateRewrites(allIssues);
+    setStep(4, 'done');
+
+    const rewriteMap = Object.fromEntries(rewrites.map(r => [r.issue_id, r]));
+    updateStats(allIssues);
+    buildAnnotatedSpec(specText, allIssues);
+    renderIssues(allIssues, rewriteMap);
+    showState('results');
+  } catch (err) {
+    showState('input');
+    showError('Error: ' + err.message);
+  }
+}
+
+filterRow.addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  activeFilter = btn.dataset.filter;
+  filterRow.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+  renderIssues(allIssues, Object.fromEntries(rewrites.map(r => [r.issue_id, r])));
+});
+
+specInput.addEventListener('input', () => {
+  const len = specInput.value.trim().length;
+  charCount.textContent = len.toLocaleString() + ' character' + (len !== 1 ? 's' : '');
+  runBtn.disabled = len < 30;
+});
+specInput.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') runBtn.click(); });
+runBtn.addEventListener('click', runPipeline);
+resetBtn.addEventListener('click', () => {
+  showState('input');
+  specInput.value = ''; charCount.textContent = '0 characters';
+  runBtn.disabled = true; runBtn.textContent = 'Analyze spec \u2192';
+  errorBox.style.display = 'none';
+  allIssues = []; rewrites = []; activeFilter = 'ALL';
+  filterRow.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === 'ALL'));
+  document.querySelectorAll('.pipe-step').forEach((s, i) => { s.classList.remove('active','done'); document.getElementById('si-' + (i+1)).textContent = i+1; });
+  document.querySelectorAll('.parallel-pill').forEach(p => p.classList.remove('running','done'));
+});
+showState('input');
+</script>
+</body>
+</html>

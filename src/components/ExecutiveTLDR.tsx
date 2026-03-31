@@ -22,7 +22,7 @@ const ExecutiveTLDR: React.FC<ExecutiveTLDRProps> = ({
       transition={{ duration: 0.8, ease: "easeOut" }}
       className="mb-6 px-2"
     >
-      <p className="font-sans text-[20px] leading-relaxed text-slate-700 font-medium">
+      <p className="font-sans text-[16px] sm:text-[20px] leading-relaxed text-slate-700 font-medium">
         "The state of the business remains robust, with revenue trending 
         <span className={isRevenueUp ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>
           {" "}{isRevenueUp ? 'upward' : 'downward'} by {Math.abs(revenueTrend).toFixed(1)}%

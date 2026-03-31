@@ -13,13 +13,17 @@ import {
   Menu,
   Sun,
   Moon,
-  X as CloseIcon
+  X as CloseIcon,
+  ListTodo,
+  Network
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyzeDecision, AnalysisResult, AnalysisType } from './services/geminiService';
 import { cn } from './lib/utils';
 import DecisionIntelligence from './components/DecisionIntelligence';
 import DataDashboard from './components/DataDashboard';
+import RicePrioritizer from './components/RicePrioritizer';
+import MetricHierarchyBuilder from './components/MetricHierarchyBuilder';
 
 interface HistoryItem extends AnalysisResult {
   id: string;
@@ -27,13 +31,14 @@ interface HistoryItem extends AnalysisResult {
   timestamp: number;
 }
 
-type ToolType = 'decision' | 'dashboard';
+type ToolType = 'decision' | 'dashboard' | 'rice' | 'hierarchy';
 type Theme = 'light' | 'dark';
 
 export default function App() {
   // Navigation State
   const [activeTool, setActiveTool] = useState<ToolType>('decision');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Decision Intelligence State (Persistent)
   const [decision, setDecision] = useState('');
@@ -87,12 +92,86 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] text-[#1D1D1F] font-sans selection:bg-[#0071E3] selection:text-white flex transition-colors duration-300">
-      {/* Navigation Sidebar */}
+    <div className="min-h-screen bg-[#F5F5F7] text-[#1D1D1F] font-sans selection:bg-[#0071E3] selection:text-white flex flex-col lg:flex-row transition-colors duration-300">
+      {/* Mobile Header */}
+      <header className="lg:hidden sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-[#D2D2D7]/50 px-4 h-16 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-gradient-to-br from-[#0071E3] to-[#00C7FF] rounded-lg flex items-center justify-center text-white shadow-sm">
+            <BrainCircuit className="w-5 h-5" />
+          </div>
+          <span className="font-bold text-[17px] tracking-tight">PM Tool Suite</span>
+        </div>
+        <button 
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="p-2 hover:bg-[#F5F5F7] rounded-xl transition-colors"
+        >
+          {isMobileMenuOpen ? <CloseIcon className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </header>
+
+      {/* Mobile Menu Overlay */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60] lg:hidden"
+            />
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              className="fixed top-0 left-0 h-full w-[280px] bg-white shadow-2xl z-[70] flex flex-col lg:hidden"
+            >
+              <div className="p-6 flex items-center justify-between border-b border-[#D2D2D7]/50">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 bg-gradient-to-br from-[#0071E3] to-[#00C7FF] rounded-lg flex items-center justify-center text-white shadow-sm">
+                    <BrainCircuit className="w-5 h-5" />
+                  </div>
+                  <span className="font-bold text-[17px] tracking-tight">PM Tool Suite</span>
+                </div>
+                <button onClick={() => setIsMobileMenuOpen(false)}>
+                  <CloseIcon className="w-6 h-6 text-[#86868B]" />
+                </button>
+              </div>
+              <nav className="flex-1 px-3 space-y-2 mt-4">
+                {[
+                  { id: 'decision', label: 'Decision Intelligence', icon: BrainCircuit },
+                  { id: 'dashboard', label: 'Insight Dashboard', icon: LayoutDashboard },
+                  { id: 'rice', label: 'RICE Prioritizer', icon: ListTodo },
+                  { id: 'hierarchy', label: 'Metric Hierarchy', icon: Network },
+                ].map((tool) => (
+                  <button
+                    key={tool.id}
+                    onClick={() => {
+                      setActiveTool(tool.id as ToolType);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all",
+                      activeTool === tool.id 
+                        ? "bg-[#F5F5F7] text-[#0071E3]" 
+                        : "text-[#86868B] hover:bg-[#F5F5F7] hover:text-[#1D1D1F]"
+                    )}
+                  >
+                    <tool.icon className={cn("w-5 h-5", activeTool === tool.id ? "text-[#0071E3]" : "text-[#86868B]")} />
+                    <span className="font-semibold text-[15px]">{tool.label}</span>
+                  </button>
+                ))}
+              </nav>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Desktop Navigation Sidebar */}
       <motion.aside 
         initial={false}
         animate={{ width: isSidebarOpen ? 280 : 80 }}
-        className="sticky top-0 h-screen bg-white border-r border-[#D2D2D7]/50 flex flex-col z-40 transition-all duration-300 ease-in-out"
+        className="hidden lg:flex sticky top-0 h-screen bg-white border-r border-[#D2D2D7]/50 flex-col z-40 transition-all duration-300 ease-in-out"
       >
         <div className="p-6 flex items-center justify-between">
           <AnimatePresence mode="wait">
@@ -127,6 +206,8 @@ export default function App() {
           {[
             { id: 'decision', label: 'Decision Intelligence', icon: BrainCircuit },
             { id: 'dashboard', label: 'Insight Dashboard', icon: LayoutDashboard },
+            { id: 'rice', label: 'RICE Prioritizer', icon: ListTodo },
+            { id: 'hierarchy', label: 'Metric Hierarchy', icon: Network },
           ].map((tool) => (
             <button
               key={tool.id}
@@ -166,14 +247,17 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <header className="sticky top-0 z-30 w-full bg-[#F5F5F7]/80 backdrop-blur-md border-b border-[#D2D2D7]/50">
-          <div className="max-w-6xl mx-auto px-8 h-16 flex justify-between items-center">
-            <h1 className="font-semibold text-[19px] tracking-tight">
-              {activeTool === 'decision' ? 'Business Decision Intelligence' : 'Data Driven Insight Dashboard'}
+          <div className="max-w-6xl mx-auto px-4 sm:px-8 h-16 flex justify-between items-center">
+            <h1 className="font-semibold text-[16px] sm:text-[19px] tracking-tight truncate mr-2">
+              {activeTool === 'decision' ? 'Business Decision Intelligence' : 
+               activeTool === 'dashboard' ? 'Data Driven Insight Dashboard' : 
+               activeTool === 'rice' ? 'Product Feature Prioritization' :
+               'Metric Hierarchy Builder'}
             </h1>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 shrink-0">
               {activeTool === 'decision' && (
                 <button 
-                  onClick={() => setShowHistory(!history)}
+                  onClick={() => setShowHistory(!showHistory)}
                   className="p-2 hover:bg-[#E8E8ED] transition-colors rounded-full"
                   title="History"
                 >
@@ -186,7 +270,7 @@ export default function App() {
 
         <main className="flex-1 overflow-auto">
           <div className={cn(
-            "mx-auto px-8 py-12 transition-all duration-500",
+            "mx-auto px-4 sm:px-8 py-6 sm:py-12 transition-all duration-500",
             activeTool === 'decision' ? "max-w-4xl" : "max-w-7xl"
           )}>
             <AnimatePresence mode="wait">
@@ -208,7 +292,7 @@ export default function App() {
                     handleAnalyze={handleAnalyze}
                   />
                 </motion.div>
-              ) : (
+              ) : activeTool === 'dashboard' ? (
                 <motion.div
                   key="dashboard-tool"
                   initial={{ opacity: 0, x: 20 }}
@@ -218,19 +302,39 @@ export default function App() {
                 >
                   <DataDashboard />
                 </motion.div>
+              ) : activeTool === 'rice' ? (
+                <motion.div
+                  key="rice-tool"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <RicePrioritizer />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="hierarchy-tool"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <MetricHierarchyBuilder />
+                </motion.div>
               )}
             </AnimatePresence>
           </div>
         </main>
 
         {/* Footer */}
-        <footer className="border-t border-[#D2D2D7]/50 py-8 px-8">
-          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4 text-[13px] font-medium text-[#86868B]">
+        <footer className="border-t border-[#D2D2D7]/50 py-8 px-4 sm:px-8">
+          <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-[13px] font-medium text-[#86868B]">
             <div className="flex items-center gap-2">
               <BrainCircuit className="w-4 h-4" />
               <span>Product Manager Tool Suite v1.1</span>
             </div>
-            <div className="flex items-center gap-6">
+            <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
               <span>Powered by Gemini AI</span>
               <div className="flex gap-4">
                 <a href="#" className="hover:text-[#1D1D1F] transition-colors">Privacy</a>

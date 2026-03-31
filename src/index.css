@@ -17,6 +17,16 @@
     @apply antialiased transition-colors duration-300;
     background-color: var(--background-color);
     color: var(--text-color);
+    /* Handle iOS safe areas */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Prevent auto-zoom on iOS for inputs */
+  input, textarea, select {
+    font-size: 16px !important;
   }
 }
 

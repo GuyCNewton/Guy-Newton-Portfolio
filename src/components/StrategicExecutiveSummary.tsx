@@ -37,7 +37,7 @@ const StrategicExecutiveSummary: React.FC<StrategicExecutiveSummaryProps> = ({
     setDeployedImpact(baseProjected + variance);
   };
 
-  const handleDraftBrief = () => {
+  const handleBriefAsk = () => {
     setIsGeneratingBrief(true);
     setTimeout(() => {
       setIsGeneratingBrief(false);
@@ -56,7 +56,7 @@ const StrategicExecutiveSummary: React.FC<StrategicExecutiveSummaryProps> = ({
       <div className="absolute -inset-[1px] bg-gradient-to-r from-indigo-500 via-blue-500 to-indigo-500 rounded-[2rem] blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-500 animate-gradient-x"></div>
       
       {/* Main Container with Glassmorphism */}
-      <div className="relative bg-white/80 backdrop-blur-xl border border-[#D2D2D7]/50 rounded-[2rem] p-8 shadow-xl overflow-hidden">
+      <div className="relative bg-white/80 backdrop-blur-xl border border-[#D2D2D7]/50 rounded-[2rem] p-6 sm:p-8 shadow-xl overflow-hidden">
         {/* Shimmer Effect on Hover */}
         <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-[-20deg] pointer-events-none"></div>
 
@@ -135,7 +135,7 @@ const StrategicExecutiveSummary: React.FC<StrategicExecutiveSummaryProps> = ({
 
                     {!showBrief && (
                       <button 
-                        onClick={handleDraftBrief}
+                        onClick={handleBriefAsk}
                         disabled={isGeneratingBrief}
                         className={cn(
                           "w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[13px] font-bold rounded-xl transition-all shadow-lg shadow-emerald-200/50 group/btn",
@@ -204,7 +204,7 @@ const StrategicExecutiveSummary: React.FC<StrategicExecutiveSummaryProps> = ({
           </div>
 
           {/* Strategic Recommendation Callout */}
-          <div className="mt-2 p-6 bg-indigo-50/50 border border-indigo-100/50 rounded-2xl space-y-4">
+          <div className="mt-2 p-4 sm:p-6 bg-indigo-50/50 border border-indigo-100/50 rounded-2xl space-y-4">
             <div className="flex items-center gap-2 text-indigo-900 font-bold uppercase tracking-wider text-xs">
               <Zap className="w-4 h-4" />
               Next Best Action
